@@ -31,6 +31,13 @@ Newest entries at the top of each section.
 - No code written (correct for Phase 0 / QA-0).
 - **Blocking on Rahul:** answers to the open-questions list below before Phase 1 can start.
 
+### 2026-07-05 — Database provisioned & migrated
+- **Railway Postgres provisioned** (project `cooperative-delight`, service Online). Local dev connects via the public TCP proxy (`DATABASE_PUBLIC_URL`); value stored in gitignored `.env` as `DATABASE_URL`.
+- **Initial migration applied:** `prisma/migrations/20260705135135_init` — all 11 domain tables + `Session` created and in sync. Verified connectivity + table list via `information_schema` (DB path that `/healthz` uses works).
+- Prisma Client generated.
+- Note: Railway free credit shows "30 days or $5.00 left" — fine for dev; watch before beta.
+- ⚠️ Dev-DB password was shared in chat; rotate in Railway before production (non-blocking for dev).
+
 ### 2026-07-05 — App linked + brand rename
 - **`shopify app config link` succeeded** — local project linked to Partner app **"Cited"** (client_id `4d2f3b73…`). `shopify.app.toml` now carries client_id, `embedded = true`, `use_legacy_install_flow = false` (token exchange), api_version `2026-07`.
 - **Brand renamed Aivo → "Cited"** via the single constant `APP_NAME` in `app/config.ts` (plus package name + doc/comment headers). No other code touched — this is exactly why the brief mandated one brand constant.
