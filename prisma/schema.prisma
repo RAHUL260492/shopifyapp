@@ -1,0 +1,253 @@
+// Aivo — Prisma schema v1
+// AI Search Visibility Suite for Shopify
+// Data model mirrors PROJECT_BRIEF.md §3.1. Refined per phase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Shopify session storage (required by @shopify/shopify-app-session-storage-prisma) ---
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// --- Core domain ---
+
+enum PlanTier {
+  NONE
+  STARTER
+  GROWTH
+}
+
+model Shop {
+  id            String    @id @default(cuid())
+  domain        String    @unique // myshop.myshopify.com
+  planTier      PlanTier  @default(NONE)
+  installedAt   DateTime  @default(now())
+  uninstalledAt DateTime?
+  settings      Json      @default("{}") // brand aliases, competitors config, feature flags
+
+  products       Product[]
+  trackedPrompts TrackedPrompt[]
+  competitors    Competitor[]
+  scanRuns       ScanRun[]
+  llmUsage       LlmUsage[]
+  billingRecords BillingRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domain])
+}
+
+model Product {
+  id             String    @id @default(cuid())
+  shopId         String
+  shopifyGid     String // gid://shopify/Product/123
+  title          String
+  handle         String
+  syncedAt       DateTime?
+  readinessScore Int? // 0-100, null until first scored
+  scoreBreakdown Json      @default("{}") // per-rule detail
+
+  shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  issues           ProductIssue[]
+  enrichmentDrafts EnrichmentDraft[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, shopifyGid])
+  @@index([shopId])
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum IssueStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+}
+
+model ProductIssue {
+  id         String        @id @default(cuid())
+  productId  String
+  type       String // e.g. "missing_gtin", "thin_description"
+  severity   IssueSeverity
+  status     IssueStatus   @default(OPEN)
+  suggestion Json          @default("{}")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+enum EnrichmentStatus {
+  DRAFT
+  APPROVED
+  APPLIED
+  REJECTED
+}
+
+model EnrichmentDraft {
+  id            String           @id @default(cuid())
+  productId     String
+  field         String // "description" | "faq" | metafield key
+  originalValue String? // captured for rollback
+  aiValue       String
+  status        EnrichmentStatus @default(DRAFT)
+  appliedAt     DateTime?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([status])
+}
+
+model TrackedPrompt {
+  id         String   @id @default(cuid())
+  shopId     String
+  text       String
+  active     Boolean  @default(true)
+  engineList String[] // ["openai", "gemini"]
+
+  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  scanResults ScanResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+}
+
+model Competitor {
+  id     String @id @default(cuid())
+  shopId String
+  name   String
+  domain String
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model ScanRun {
+  id         String     @id @default(cuid())
+  shopId     String
+  engine     String // "openai" | "gemini"
+  status     ScanStatus @default(QUEUED)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  costCents  Int        @default(0)
+
+  shop    Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  results ScanResult[]
+
+  createdAt DateTime @default(now())
+
+  @@index([shopId])
+  @@index([status])
+}
+
+model ScanResult {
+  id                   String  @id @default(cuid())
+  scanRunId            String
+  promptId             String
+  rawResponse          String
+  brandMentioned       Boolean @default(false)
+  productsMentioned    Json    @default("[]")
+  competitorsMentioned Json    @default("[]")
+  citedDomains         Json    @default("[]")
+
+  scanRun ScanRun       @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  prompt  TrackedPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([scanRunId])
+  @@index([promptId])
+}
+
+model LlmUsage {
+  id        String   @id @default(cuid())
+  shopId    String
+  provider  String // "anthropic" | "openai" | "google"
+  model     String
+  tokensIn  Int
+  tokensOut Int
+  costCents Int
+  purpose   String // "enrichment" | "citation_scan"
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+  @@index([shopId, createdAt])
+}
+
+model WebhookLog {
+  id          String    @id @default(cuid())
+  shopDomain  String
+  topic       String
+  payloadHash String // dedupe / idempotency
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([shopDomain])
+  @@index([topic])
+}
+
+model BillingRecord {
+  id        String   @id @default(cuid())
+  shopId    String
+  chargeId  String? // Shopify subscription/charge id
+  planTier  PlanTier
+  status    String // "active" | "cancelled" | "declined" | "frozen"
+  event     String // billing webhook topic or action
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+}
