@@ -1,28 +1,33 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "4d2f3b730d0358ed516e46b75f0a3a12"
+name = "Cited"
 application_url = "https://example.com"
 embedded = true
-name = "Cited"
 
-[access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# Minimum-necessary for current phases: read (Phase 2 sync) + write (Phase 3 enrichment).
-# read_content / read_themes / read_online_store_pages added in Phase 6 when used.
-scopes = "read_products,write_products"
-optional_scopes = [ ]
-use_legacy_install_flow = false
+[build]
+# Let `shopify app dev` swap in the tunnel URL for the dev session so the
+# embedded frame loads the local app instead of the placeholder application_url.
+automatically_update_urls_on_dev = true
+dev_store_url = "cited-dev-gc.myshopify.com"
 
 [webhooks]
 api_version = "2026-07"
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = [ "app/scopes_update" ]
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# Minimum-necessary for current phases: read (Phase 2 sync) + write (Phase 3 enrichment).
+scopes = "read_products,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [ ]

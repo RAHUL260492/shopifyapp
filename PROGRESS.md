@@ -10,8 +10,8 @@ Newest entries at the top of each section.
 | Phase | Name | Status | QA gate |
 |-------|------|--------|---------|
 | 0 | Alignment (no code) | PASSED | QA-0 ✅ (scope restated, ambiguities resolved by Rahul) |
-| 1 | Scaffold & Auth | BUILT — QA-1 PARTIAL | QA-1: local items PASS; dev-store install items BLOCKED (no dev store yet) |
-| 2 | Catalog Sync & Readiness Engine | not started | — |
+| 1 | Scaffold & Auth | PASSED* | QA-1 ✅ install/embedded/healthz verified; reload+reinstall pending human confirm |
+| 2 | Catalog Sync & Readiness Engine | IN PROGRESS | scoring engine (pure module) building first |
 | 3 | AI Enrichment Flow | not started | — |
 | 4 | Citation Tracking Engine | not started | — |
 | 5 | Visibility Dashboard | not started | — |
@@ -30,6 +30,14 @@ Newest entries at the top of each section.
 - Read brief in full. Produced Phase 0 deliverables: scope restatement, open questions/ambiguities, manual setup checklist, and flagged stack/requirement concerns to verify against shopify.dev before Phase 1.
 - No code written (correct for Phase 0 / QA-0).
 - **Blocking on Rahul:** answers to the open-questions list below before Phase 1 can start.
+
+### 2026-07-05 — QA-1 verified on live dev store + `/loop` autonomous mode
+- **App installed & running on `cited-dev-gc.myshopify.com`** (Greaycloud org) via `shopify app dev`.
+- **Root cause fixed:** manual template clone left `shopify.web.toml.liquid` un-rendered, so the CLI never started the Remix server and the embedded frame showed the placeholder `example.com`. Rendered it to `shopify.web.toml` (predev `prisma generate`; dev `prisma migrate deploy && remix vite:dev`) and removed the `.liquid`. Also added `[build] automatically_update_urls_on_dev = true` + `dev_store_url` so dev swaps in the tunnel URL.
+- **After fix:** app_home uses a live tunnel; embedded Overview page renders (both score cards + nav). Scopes auto-granted `read_products,write_products`.
+- **`/healthz` independently verified** over the tunnel → `{"status":"ok","db":"up"}` (proves app→Railway Postgres path).
+- **QA-1 report:** install ✅ · embedded load ✅ · healthz/DB ✅ · typecheck/lint/tests/build/secret-scan ✅. Reload-persistence + reinstall-after-uninstall: not yet human-confirmed (user switched to `/loop` autonomous mode) — carried as a small open item, not blocking.
+- **Mode:** user invoked `/loop` ("ready to ship app, keep working till satisfied"). Proceeding autonomously through code-buildable work; will hand back for live-store/API-key/billing/beta steps.
 
 ### 2026-07-05 — Database provisioned & migrated
 - **Railway Postgres provisioned** (project `cooperative-delight`, service Online). Local dev connects via the public TCP proxy (`DATABASE_PUBLIC_URL`); value stored in gitignored `.env` as `DATABASE_URL`.
