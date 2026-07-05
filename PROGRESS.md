@@ -67,6 +67,7 @@ Newest entries at the top of each section.
 → **QA-1 cannot fully close until Rahul provides a dev store** (+ links the Partner app via `shopify app config link`, sets env, `prisma migrate dev` against a Postgres DB). All code-level gate items pass.
 
 **Open issues:**
+- ⚠️ **CI workflow not on GitHub yet:** `.github/workflows/ci.yml` exists on disk and is locally green, but the push was rejected — the git/`gh` token lacks GitHub's `workflow` scope. **Action for Rahul:** run `gh auth refresh -s workflow` (or use a PAT with `workflow` scope), then `git add .github/workflows/ci.yml && git commit -m "add CI workflow" && git push`. Until then CI does not run on GitHub.
 - P3: `@remix-run/eslint-config` is deprecated (inherited from template). Migrate to flat config later — non-blocking.
 - Deferred to Phase 8 (QA-8): `npm audit` reports 32 vulns (6 moderate/26 high) from inherited template deps.
 
