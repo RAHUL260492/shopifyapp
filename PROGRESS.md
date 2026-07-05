@@ -31,6 +31,14 @@ Newest entries at the top of each section.
 - No code written (correct for Phase 0 / QA-0).
 - **Blocking on Rahul:** answers to the open-questions list below before Phase 1 can start.
 
+### 2026-07-05 — App linked + brand rename
+- **`shopify app config link` succeeded** — local project linked to Partner app **"Cited"** (client_id `4d2f3b73…`). `shopify.app.toml` now carries client_id, `embedded = true`, `use_legacy_install_flow = false` (token exchange), api_version `2026-07`.
+- **Brand renamed Aivo → "Cited"** via the single constant `APP_NAME` in `app/config.ts` (plus package name + doc/comment headers). No other code touched — this is exactly why the brief mandated one brand constant.
+- **Scopes restored:** `config link` overwrote scopes with empty (dashboard app has none set yet); set back to `read_products,write_products` in the toml. Run `shopify app deploy` to push this config to the dashboard.
+- **API version aligned:** `shopify.server.ts` bumped `January25 → July26` to match the linked config's `2026-07` (latest, supported by installed `@shopify/shopify-api@13.1.0`).
+- Re-verified after changes: typecheck ✅, tests 7/7 ✅, lint ✅.
+- **Still needed to close QA-1:** a reachable **Postgres** DB (`DATABASE_URL`), then `npx prisma migrate dev`, then `shopify app dev` to run the OAuth install on the dev store. `application_url`/`redirect_urls` are placeholders until `shopify app dev` sets the tunnel URL.
+
 ### 2026-07-05 — Phase 1 scaffold & auth
 **Built:**
 - Scaffolded from official `Shopify/shopify-app-template-remix` (Remix 2.16, Polaris 12, `shopify-app-remix` 4.2, App Bridge 4, Prisma session storage). Token-exchange embedded auth (`unstable_newEmbeddedAuthStrategy`) — matches locked decision.

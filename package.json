@@ -1,5 +1,5 @@
 {
-  "name": "aivo",
+  "name": "cited",
   "private": true,
   "scripts": {
     "build": "remix vite:build",

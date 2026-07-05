@@ -32,3 +32,8 @@ test-results/
 
 # Shopify
 .shopify/
+
+# TEMP: CI workflow held out of git until a token with GitHub `workflow` scope
+# is available (see PROGRESS.md). Remove this line + `git add .github/workflows/ci.yml`
+# once `gh auth refresh -s workflow` is done.
+.github/workflows/ci.yml
