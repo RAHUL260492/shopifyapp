@@ -4,7 +4,7 @@
 // score is simply the weighted sum. Rules are deterministic: same input -> same
 // output, no randomness, no clock, no I/O.
 
-import type { Rule, ReadinessIssue, ScorableProduct } from "./types";
+import type { Rule, ReadinessIssue } from "./types";
 
 // --- helpers (pure) ---
 
