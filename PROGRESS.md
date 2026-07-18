@@ -13,7 +13,7 @@ Newest entries at the top of each section.
 | 1 | Scaffold & Auth | PASSED* | QA-1 ✅ install/embedded/healthz verified; reload+reinstall pending human confirm |
 | 2 | Catalog Sync & Readiness Engine | CODE COMPLETE | sync+UI+webhooks built & locally green; live QA-2 pending human run |
 | 3 | AI Enrichment Flow | CODE COMPLETE | adapter+generate+approve/write-back/rollback built; safety logic tested; live QA-3 pending key+store |
-| 4 | Citation Tracking Engine | not started | — |
+| 4 | Citation Tracking Engine | CODE COMPLETE | parser+providers+scan+CRUD/UI built; runs on mock engine; live on OpenAI/Gemini keys. Scheduler (BullMQ) deferred |
 | 5 | Visibility Dashboard | not started | — |
 | 6 | llms.txt / JSON-LD / robots | CODE COMPLETE | generator+proxy, robots audit, JSON-LD theme extension built; live QA-6 pending deploy |
 | 7 | Billing & Tier Enforcement | CODE COMPLETE | Managed Pricing: plan resolution + server-side enforcement built; live QA-7 pends Partner Dashboard plans |
@@ -24,6 +24,20 @@ Newest entries at the top of each section.
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 4 citation tracking engine (built against mocks; live on keys)
+Built with the LLMProvider-style adapter pattern so it runs on a mock engine now (no keys) and live the moment OpenAI/Gemini keys are added. Rahul will provide keys later.
+
+**Built:**
+- **Response parser** (`app/lib/citations/parse.ts`, pure, **26 fixture tests**): brand/product/competitor mention detection with word-boundary matching (substring-safe — "Cited" ≠ "excited"), possessive/plural tolerance, light fuzzy (edit-distance ≤1) misspelling detection surfaced as `ambiguous`, markdown normalization (links/bold/code fences), refusal/empty detection, and cited-domain extraction (URLs + bare domains, www-stripped, email-safe). Covers the QA-4 fixture list.
+- **Provider layer**: `CitationProvider` interface + `MockCitationProvider` (deterministic, keyless) + `OpenAiCitationProvider` (Responses API + web_search) + `GeminiCitationProvider` (generateContent + google_search grounding). Factory (`index.server.ts`) returns configured engines or falls back to mock. **Flagged:** verify OpenAI/Gemini request/response shapes against current docs before live QA-4 (isolated per adapter).
+- **Cost cap** (`cost.ts`, pure, tested): per-model pricing + `wouldExceedCap`; default $2/day/shop hard cap. **Aggregation** (`aggregate.ts`, pure, tested): 3-sample smoothing → brand visibility %, competitor union, cited-domain union; `shareOfVoice` split brand vs competitors.
+- **Scan orchestration** (`scan.server.ts`): per engine, run each prompt 3× → parse → persist ScanRun/ScanResult → log LlmUsage (purpose "citation_scan") → enforce daily cap (hard stop + alert log). Engine failures isolated (OpenAI down ≠ Gemini blocked). `runAllScans(shop)` + `brandTermsFor` (aliases or domain fallback).
+- **Prompts & Citations UI** (`app.prompts.tsx`): tier-limited prompt CRUD + competitor CRUD (server-side `assertWithinPromptLimit`/`assertWithinCompetitorLimit` — enforced against direct calls), brand-alias config (Shop.settings), "Run scan now", and per-prompt results (brand visibility %, competitors, cited domains, last-scanned + "AI answers vary" disclosure). Mock-engine banner when no keys.
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation only) · tests **132/132** ✅ (+36: parser 26, cost/aggregate 10) · build ✅.
+
+**Remaining:** (a) **Scheduled scans** — currently manual "Run scan now"; brief specifies BullMQ daily(Growth/Pro)/weekly(Starter) via Redis (`REDIS_URL` set). Needs a worker process; deferred (manual trigger works today). (b) **Live QA-4** — add `OPENAI_API_KEY`+`GOOGLE_AI_API_KEY`, verify adapter shapes, then run the parser suite against real answers, cap test at $0.01, engine-isolation test. (c) **Phase 5 dashboard** — Overview visibility score/30-day trends + citation-gap report (domains cited where brand absent) not yet built; per-prompt results live on the Prompts page.
 
 ### 2026-07-18 — Phase 8 GDPR compliance webhooks + hardening
 **Built:**
