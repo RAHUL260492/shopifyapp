@@ -11,7 +11,7 @@ Newest entries at the top of each section.
 |-------|------|--------|---------|
 | 0 | Alignment (no code) | PASSED | QA-0 ✅ (scope restated, ambiguities resolved by Rahul) |
 | 1 | Scaffold & Auth | PASSED* | QA-1 ✅ install/embedded/healthz verified; reload+reinstall pending human confirm |
-| 2 | Catalog Sync & Readiness Engine | IN PROGRESS | scoring engine (pure module) building first |
+| 2 | Catalog Sync & Readiness Engine | CODE COMPLETE | sync+UI+webhooks built & locally green; live QA-2 pending human run |
 | 3 | AI Enrichment Flow | not started | — |
 | 4 | Citation Tracking Engine | not started | — |
 | 5 | Visibility Dashboard | not started | — |
@@ -24,6 +24,22 @@ Newest entries at the top of each section.
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 2 catalog sync + readiness UI + product webhooks; plans → 4 tiers
+**Built:**
+- **Catalog sync service** (`app/lib/products/sync.server.ts`): Admin GraphQL products query with cursor pagination, throttle-aware backoff, `first: 8`/page to stay under the 1000-point single-query cost ceiling (variants(100) dominates). Maps each node → `ScorableProduct` → `scoreProduct()` → persists `Product` (readinessScore + full scoreBreakdown JSON) and replaces its `ProductIssue` rows in a transaction. Also `syncSingleProduct` (webhook re-score) and `deleteProduct`.
+- **Pure mapping layer** (`app/lib/products/map.ts` + 4 tests): GraphQL node → `ScorableProduct`; counts only IMAGE media, coerces nulls, passes store policies through. Reviews left `null` (review-source adapter deferred; the reviews rule nudges the merchant).
+- **Store policies**: one `shop { shopPolicies }` query per sync → `hasReturnPolicy`/`hasShippingPolicy`.
+- **Shop provisioning** (`app/lib/shop.server.ts`): idempotent `ensureShop(domain)` upsert; called on every authed load + webhook.
+- **Products page** (`app/routes/app.products.tsx`): real Polaris `IndexTable` — title, score Badge (tone by band), issue count; score-band filter (all/needs-work/fair/good, server-side); row → Modal with fix list (severity badges) + per-rule score breakdown (ProgressBars); empty state with Sync CTA; "Sync catalog" primary action wired to the route `action`.
+- **Overview** (`app/routes/app._index.tsx`): live store-level readiness score + product count from DB (mean via Prisma aggregate); empty vs scored states.
+- **Read helpers** (`app/lib/products/query.server.ts`): `listProducts(shopId, band)`, `storeReadiness(shopId)`.
+- **Product webhooks**: `products/create|update|delete` routes + `shopify.app.toml` subscriptions; shared `productGidFromPayload` helper. Create/update re-fetch+re-score via `syncSingleProduct`; delete removes (issues cascade).
+- **Plans → 4 tiers** (per Rahul): `Free $0 / Starter $19 / Growth $49 / Pro $99` in `app/config.ts` (single source; added `competitorLimit`, `PlanKey`, `PAID_PLAN_ORDER`). `PlanTier` enum extended with `FREE`, `PRO` (migration `20260718091127_add_free_and_pro_plan_tiers`, applied to Railway). `plans.ts` `Tier` type + `planForTier` updated; new tests.
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation warning only) · tests **53/53** ✅ (added map ×4, plans ×2) · build ✅ (cosmetic Polaris `and print` CSS warning). Live DB smoke-tested against Railway: `ensureShop` idempotent, empty aggregate shape correct, `PRO` enum accepted, cleanup ok.
+
+**Remaining to close QA-2 (needs live dev store + `shopify app dev`):** spot-check 10 products field-by-field vs Shopify admin; webhook update reflected in DB <30s; 5k-product catalog without rate-limit errors (see bulk-operations follow-up); table paginates/filters correctly in the embedded UI. Scoring determinism already proven by tests.
 
 ### 2026-07-05 — Phase 0 kickoff
 - Repo initialized (`git init`), `PROJECT_BRIEF.md` saved verbatim, `PROGRESS.md` created.
@@ -104,9 +120,11 @@ Newest entries at the top of each section.
 - **Setup status (Rahul):** Partner app CREATED. Dev store, Railway, and LLM keys NOT yet done.
   - ⚠️ **QA-1 gate is partially BLOCKED**: OAuth install test on a dev store cannot run until a dev store with seed products exists. Phase 1 code will be built and locally verified; the "fresh install on dev store <10s" item stays PENDING until the store is provided.
 - **Brand constant:** "Aivo" retained as the single config constant.
+- **Plans (2026-07-18):** 4 tiers — Free $0, Starter $19, Growth $49, Pro $99 (was 2). Free is a real selectable $0 tier to drive installs; `NONE` remains the pre-selection state. Limits live only in `app/config.ts::PLANS`. Server-side enforcement still lands in Phase 7.
 
 ## Open issues / bugs
-- (none — no code yet)
+- **Follow-up (Phase 2 scaling):** catalog sync uses cursor pagination (safe for typical catalogs). The QA-2 5k-product gate should move sync to Shopify **Bulk Operations** (`bulkOperationRunQuery` → poll → download JSONL → parse). The pure map/score layer is already decoupled, so this swap is isolated to `sync.server.ts`. Not blocking normal-size stores.
+- Reviews signal is `null` until a review-source adapter is added (metafields / review app); the reviews rule currently emits a LOW "connect a review source" nudge.
 
 ## Flags: brief vs. current Shopify requirements (to verify live at Phase 1)
 - **Billing:** brief specifies Billing API recurring charges. Shopify now steers new apps toward **Managed Pricing**. Must confirm which is required/allowed before Phase 7 design — pull live from shopify.dev.

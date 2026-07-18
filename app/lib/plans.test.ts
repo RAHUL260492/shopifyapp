@@ -3,8 +3,23 @@ import { describe, it, expect } from "vitest";
 import { planForTier, canUseEnrichment, trackedPromptLimit } from "./plans";
 
 describe("planForTier", () => {
-  it("returns null for NONE (no subscription)", () => {
+  it("returns null for NONE (no plan chosen yet)", () => {
     expect(planForTier("NONE")).toBeNull();
+  });
+
+  it("returns the Free tier as a real $0 plan", () => {
+    const plan = planForTier("FREE");
+    expect(plan?.priceUsd).toBe(0);
+    expect(plan?.trackedPromptLimit).toBe(3);
+    expect(plan?.enrichmentWriteback).toBe(false);
+  });
+
+  it("returns Pro config with the highest limits", () => {
+    const plan = planForTier("PRO");
+    expect(plan?.priceUsd).toBe(99);
+    expect(plan?.trackedPromptLimit).toBe(200);
+    expect(plan?.scanCadence).toBe("daily");
+    expect(plan?.enrichmentWriteback).toBe(true);
   });
 
   it("returns Starter config with brief-mandated limits", () => {

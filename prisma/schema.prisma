@@ -36,8 +36,10 @@ model Session {
 
 enum PlanTier {
   NONE
+  FREE
   STARTER
   GROWTH
+  PRO
 }
 
 model Shop {
