@@ -143,12 +143,16 @@ export async function fetchStorePolicies(
   };
 }
 
-/** Persist one scored product and replace its issue list, atomically. */
+/**
+ * Persist one scored product and replace its issue list, atomically.
+ * Returns the product's readiness score so callers can roll up a store score
+ * without re-scoring.
+ */
 async function persistProduct(
   shopId: string,
   node: GqlProductNode,
   policies: StorePolicies,
-) {
+): Promise<number> {
   const scorable = mapProductNode(node, policies);
   const breakdown = scoreProduct(scorable);
 
@@ -186,6 +190,8 @@ async function persistProduct(
       });
     }
   });
+
+  return breakdown.score;
 }
 
 export interface SyncSummary {
@@ -220,9 +226,8 @@ export async function syncCatalog(
     });
 
     for (const node of data.products.nodes) {
-      await persistProduct(shopId, node, policies);
+      scoreSum += await persistProduct(shopId, node, policies);
       productCount += 1;
-      scoreSum += scoreProduct(mapProductNode(node, policies)).score;
     }
 
     cursor = data.products.pageInfo.hasNextPage

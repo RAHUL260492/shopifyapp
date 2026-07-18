@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import {
+  useActionData,
+  useLoaderData,
+  useNavigation,
+  useSubmit,
+} from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -9,6 +14,7 @@ import {
   BlockStack,
   InlineStack,
   Badge,
+  Banner,
   Button,
   IndexTable,
   Select,
@@ -84,22 +90,43 @@ type LoadedProduct = ReturnType<
 
 export default function Products() {
   const { products, readiness, band } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
 
   const syncing = navigation.state !== "idle" && navigation.formMethod === "POST";
   const [selected, setSelected] = useState<LoadedProduct | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
-  const onSync = () => submit({}, { method: "POST" });
+  const onSync = () => {
+    setBannerDismissed(false);
+    submit({}, { method: "POST" });
+  };
   const onBandChange = (value: string) =>
     submit({ band: value }, { method: "GET" });
 
   const hasAny = readiness.productCount > 0;
+  const showSyncedBanner = actionData?.synced && !syncing && !bannerDismissed;
 
   return (
     <Page>
       <TitleBar title="Products" />
       <Layout>
+        {showSyncedBanner && (
+          <Layout.Section>
+            <Banner
+              tone="success"
+              title="Catalog synced"
+              onDismiss={() => setBannerDismissed(true)}
+            >
+              <p>
+                Scored {actionData.productCount}{" "}
+                {actionData.productCount === 1 ? "product" : "products"} · store
+                score {actionData.storeScore}/100.
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
