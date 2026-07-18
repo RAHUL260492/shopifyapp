@@ -132,5 +132,43 @@ Newest entries at the top of each section.
 - **Scopes:** brief lists `read_content` and `read_online_store_pages`; these overlap/have changed names across API versions. Verify exact current scope names before requesting them (fewer scopes = easier review).
 - **robots.txt:** confirmed constraint — Shopify only allows edits via `robots.txt.liquid`; app can instruct, not force. Brief already accounts for this.
 
+## Planned feature — External analytics connectors (new, 2026-07-18)
+Requested by Rahul: let each merchant link *their own* Google Search Console,
+Google Analytics 4, and Microsoft Clarity. All three are "connect a data source
+the merchant already owns" — but the auth models differ. Key principle: **we hold
+one app-level credential per provider; each merchant self-authorizes their own
+account.** No client ever supplies our credentials, and no client sees another's data.
+
+**1) Google Search Console + 2) GA4 — share ONE Google OAuth client:**
+- ONE Google Cloud project + ONE OAuth 2.0 client (`GOOGLE_OAUTH_CLIENT_ID` /
+  `GOOGLE_OAUTH_CLIENT_SECRET` in env), owned by us. Request both scopes:
+  - GSC: `https://www.googleapis.com/auth/webmasters.readonly`
+  - GA4: `https://www.googleapis.com/auth/analytics.readonly`
+- Each merchant clicks Connect → Google consent (offline access) → we store a
+  **per-shop refresh token** (encrypted; new `AnalyticsConnection` table keyed by
+  shopId+provider). Merchant picks which GSC property / GA4 property to use.
+- Data: GSC `searchanalytics.query` (clicks/impressions/CTR/position); GA4 Data API
+  `runReport` (sessions, conversions, traffic sources, landing pages).
+- **Blocking constraint — start early:** both are Google **sensitive scopes**;
+  serving arbitrary external merchants in production needs **Google OAuth app
+  verification** (consent-screen review; ~100 test-user cap until approved). Real
+  lead time — begin before public launch. Analogous to Shopify's app review.
+
+**3) Microsoft Clarity — NOT OAuth; per-shop API token:**
+- Clarity's Data Export API uses a **project-level Bearer token** the merchant
+  generates in their own Clarity dashboard (Settings → Data Export). No OAuth flow.
+- UI: a field where the merchant pastes their Clarity API token → stored per-shop
+  (encrypted, same `AnalyticsConnection` table, provider="clarity").
+- Data: `GET /export-data/api/v1/project-live-insights` — traffic, scroll depth,
+  dead/rage clicks, top pages. **Limited**: short lookback window (recent days),
+  capped requests/day. Good for UX-signal context, not deep historical analysis.
+
+**Scope note:** GSC/GA4/Clarity report *traditional* search & on-site behavior; they
+do not isolate AI-answer-engine citations. They **complement** — not replace — the
+citation-tracking wedge (Phase 4). Sequence these connectors **after** the core
+AI-SEO phases (they're additive to the brief, not part of the v1 wedge). Suggested:
+bundle as a single "Integrations" phase once Phases 3–7 land, given the shared
+`AnalyticsConnection` model + Settings UI.
+
 ## v2 backlog (do not build)
 Perplexity/Claude tracking engines · agency multi-store dashboard · auto-published citation-target content · off-site mention monitoring · OpenAI merchant feed export · Klaviyo/review-app integrations · white-label reports for agencies.
