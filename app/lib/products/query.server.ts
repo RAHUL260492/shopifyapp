@@ -22,7 +22,10 @@ function bandFilter(band: ScoreBand) {
 export async function listProducts(shopId: string, band: ScoreBand) {
   return prisma.product.findMany({
     where: { shopId, ...bandFilter(band) },
-    include: { issues: true },
+    include: {
+      issues: true,
+      enrichmentDrafts: { orderBy: { createdAt: "desc" } },
+    },
     orderBy: [{ readinessScore: "asc" }, { title: "asc" }],
   });
 }

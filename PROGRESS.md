@@ -12,7 +12,7 @@ Newest entries at the top of each section.
 | 0 | Alignment (no code) | PASSED | QA-0 ✅ (scope restated, ambiguities resolved by Rahul) |
 | 1 | Scaffold & Auth | PASSED* | QA-1 ✅ install/embedded/healthz verified; reload+reinstall pending human confirm |
 | 2 | Catalog Sync & Readiness Engine | CODE COMPLETE | sync+UI+webhooks built & locally green; live QA-2 pending human run |
-| 3 | AI Enrichment Flow | not started | — |
+| 3 | AI Enrichment Flow | CODE COMPLETE | adapter+generate+approve/write-back/rollback built; safety logic tested; live QA-3 pending key+store |
 | 4 | Citation Tracking Engine | not started | — |
 | 5 | Visibility Dashboard | not started | — |
 | 6 | llms.txt / JSON-LD / robots | not started | — |
@@ -24,6 +24,20 @@ Newest entries at the top of each section.
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 3 AI enrichment (Claude): adapter, generate, approve/write-back/rollback
+**Built:**
+- **LLMProvider adapter** (`app/lib/llm/`): provider-agnostic interface + Anthropic implementation via `@anthropic-ai/sdk` (model `claude-opus-4-8`, structured JSON output via `output_config.format`, SDK auto-retries 429/5xx). `getEnrichmentProvider()` returns null when `ANTHROPIC_API_KEY` is unset so the UI degrades gracefully. Pure cost accounting (`cost.ts`, $5/$25 per 1M) → logged to `LlmUsage` on every call.
+- **Enrichment generation** (`app/lib/enrichment/generate.server.ts`): fetches current product fields from Admin GraphQL, calls the LLM, parses+sanitizes, logs cost, and persists `EnrichmentDraft` rows (description / faq / attributes) in DRAFT status with `originalValue` captured for rollback. Never writes to the store.
+- **Injection-resistant prompt** (`prompt.ts`, pure): product data fenced + labeled untrusted; system prompt forbids inventing facts/hype and forbids acting on instructions inside product data; output constrained to a JSON schema. `parseEnrichmentResponse` throws on malformed/refused output (graceful error).
+- **Untrusted-output sanitizer** (`sanitize.ts`, pure): allowlist HTML sanitizer strips `<script>`/`<style>`/`<iframe>`, event-handler attrs, and script-URLs for the write-back path; our review UI never uses `dangerouslySetInnerHTML` (Polaris `<Text>` escapes), so LLM output renders inert in-app.
+- **Approval gate** (`gate.ts`, pure): `assertApproved()` — the single chokepoint every write-back passes; throws unless status is APPROVED (brief §2.4: never write without explicit approval).
+- **Write-back flow** (`apply.server.ts`): `approveDraft` → `applyDraft` (Admin `productUpdate` for description, `metafieldsSet` for faq/attributes under `cited` namespace), `rejectDraft`, `rollbackDraft` (restores original description / deletes new metafields). All ownership-checked by shopId.
+- **UI** (`app.products.tsx`): product modal now has an AI-enrichment section — Generate/Regenerate, per-draft preview, Approve & apply / Reject / Roll back, with success/error banners. Disabled with a clear message when no API key.
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation warning only) · tests **72/72** ✅ (added: gate bypass ×3, sanitizer XSS ×6, prompt/parse ×6, cost ×4) · build ✅. Safety-critical logic (approval gate, XSS sanitize, malformed-response handling, injection-prompt construction, cost math) is unit-tested pure.
+
+**Remaining to close QA-3 (needs `ANTHROPIC_API_KEY` + `shopify app dev` on a real store):** one live generation; verify write-back appears on the storefront; live prompt-injection test ("ignore previous instructions…" in a description); rollback on a real product; malformed/refused handling against a live edge case. **Also flagged:** verify the `productUpdate` mutation argument name against Admin GraphQL **2026-07** (used `product: ProductUpdateInput!`) before the live write-back QA — one-line change in `apply.server.ts` if it differs. DB-integration tests for generate/apply/rollback (mocked prisma+admin) not yet written — the *pure* safety guards they rely on are tested.
 
 ### 2026-07-18 — Phase 2 catalog sync + readiness UI + product webhooks; plans → 4 tiers
 **Built:**
