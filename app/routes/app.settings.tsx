@@ -24,11 +24,19 @@ import {
   AI_CRAWLERS,
 } from "../lib/robots/audit";
 import type { CrawlerAuditResult } from "../lib/robots/audit";
+import {
+  resolveAndStorePlan,
+  managedPricingUrl,
+} from "../lib/billing/plan.server";
+import { PLANS } from "../config";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  await ensureShop(session.shop);
+  const { session, billing } = await authenticate.admin(request);
+  const shop = await ensureShop(session.shop);
   const shopDomain = session.shop;
+
+  const plan = await resolveAndStorePlan(billing, shop.id);
+  const pricingUrl = managedPricingUrl(shopDomain);
 
   const llmsTxtUrl = `https://${shopDomain}/apps/cited/llms.txt`;
 
@@ -55,7 +63,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         )
       : null;
 
-  return { shopDomain, llmsTxtUrl, audit, robotsError, fixLiquid };
+  return {
+    shopDomain,
+    llmsTxtUrl,
+    audit,
+    robotsError,
+    fixLiquid,
+    plan,
+    planName: PLANS[plan].name,
+    priceUsd: PLANS[plan].priceUsd,
+    pricingUrl,
+  };
 };
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -93,8 +111,15 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 export default function Settings() {
-  const { llmsTxtUrl, audit, robotsError, fixLiquid } =
-    useLoaderData<typeof loader>();
+  const {
+    llmsTxtUrl,
+    audit,
+    robotsError,
+    fixLiquid,
+    planName,
+    priceUsd,
+    pricingUrl,
+  } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
 
   const rows =
@@ -104,6 +129,34 @@ export default function Settings() {
     <Page>
       <TitleBar title="Settings" />
       <Layout>
+        {/* Plan */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                Plan
+              </Text>
+              <InlineStack align="space-between" blockAlign="center">
+                <InlineStack gap="200" blockAlign="center">
+                  <Badge tone={priceUsd > 0 ? "success" : "info"}>
+                    {planName}
+                  </Badge>
+                  <Text as="span" tone="subdued">
+                    {priceUsd > 0 ? `$${priceUsd}/mo` : "Free"}
+                  </Text>
+                </InlineStack>
+                <Button url={pricingUrl} target="_blank" variant="primary">
+                  Manage plan
+                </Button>
+              </InlineStack>
+              <Text as="p" tone="subdued" variant="bodySm">
+                Plans and billing are managed by Shopify — charges appear on your
+                Shopify invoice with a 7-day free trial.
+              </Text>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
         {/* llms.txt */}
         <Layout.Section>
           <Card>

@@ -16,7 +16,7 @@ Newest entries at the top of each section.
 | 4 | Citation Tracking Engine | not started | — |
 | 5 | Visibility Dashboard | not started | — |
 | 6 | llms.txt / JSON-LD / robots | CODE COMPLETE | generator+proxy, robots audit, JSON-LD theme extension built; live QA-6 pending deploy |
-| 7 | Billing & Tier Enforcement | not started | — |
+| 7 | Billing & Tier Enforcement | CODE COMPLETE | Managed Pricing: plan resolution + server-side enforcement built; live QA-7 pends Partner Dashboard plans |
 | 8 | Hardening & Compliance | not started | — |
 | 9 | Beta on Real Stores | not started | — |
 | 10 | App Store Submission Prep | not started | — |
@@ -24,6 +24,19 @@ Newest entries at the top of each section.
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 7 billing via Shopify Managed Pricing + server-side tier enforcement
+**Decision:** Rahul asked about Razorpay for billing — flagged as a Shopify App Store violation (app charges to merchants MUST go through Shopify billing; external payment gets the app rejected). Chose **Managed Pricing** (Shopify hosts the plan-selection/checkout/trial/cancellation; we resolve the active plan + enforce limits). This resolves the Phase-0 open question (Billing API vs Managed Pricing) in favor of Managed Pricing.
+
+**Built:**
+- **Tier enforcement** (`app/lib/billing/enforce.ts`, pure, 8 tests): `canEnrich`, `promptLimit`, `scanCadence`, `competitorLimit` from the single PLANS config, plus `assertCanEnrich` / `assertWithinPromptLimit` / `assertWithinCompetitorLimit` (throw `TierLimitError`). 100% covered per brief.
+- **Plan resolution** (`app/lib/billing/plan.server.ts`, +4 tests): `resolvePlanTier(billing)` calls `billing.check()` (works arg-less for Managed Pricing), maps the active subscription name → PlanKey (defaults FREE), mirrors onto `Shop.planTier`. `managedPricingUrl(shop)` builds the admin pricing page URL. Added `APP_HANDLE` config (env-overridable; verify vs Partner Dashboard).
+- **Server-side enrichment gate**: Products action calls `assertCanEnrich(plan)` before generate/approve — enforced even against a direct API call, not just the UI (QA-7). UI shows an "Available on Growth & Pro" upgrade banner + Manage-plan button for Free/Starter.
+- **Settings**: Plan card (current plan badge + $/mo + Manage plan → Managed Pricing), plus the existing llms.txt / robots / JSON-LD sections.
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation only) · tests **96/96** ✅ · build ✅.
+
+**Remaining to close QA-7 (needs Rahul + live test billing):** create the 4 plans (Free/Starter/Growth/Pro, 7-day trial) in the Partner Dashboard's Managed Pricing; verify `APP_HANDLE` matches the dashboard handle; then live-test trial→paid, decline→lockout (billing.check returns no active sub → FREE → enrichment gated, data retained), cancel→reinstall→re-subscribe, upgrade-takes-effect-immediately (we read plan live each load). Managed Pricing handles proration/trial/cancellation; billing webhooks are not required because plan is read live via billing.check. Prompt/competitor limit enforcement is wired (assert fns ready) and attaches when Phase 4 builds the prompt/competitor CRUD routes.
 
 ### 2026-07-18 — Phase 6 llms.txt + JSON-LD + robots guidance
 **Built:**

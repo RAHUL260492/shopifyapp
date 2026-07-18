@@ -40,6 +40,11 @@ import {
   rejectDraft,
   rollbackDraft,
 } from "../lib/enrichment/apply.server";
+import {
+  resolveAndStorePlan,
+  managedPricingUrl,
+} from "../lib/billing/plan.server";
+import { assertCanEnrich, canEnrich } from "../lib/billing/enforce";
 
 type Tone = "success" | "attention" | "critical";
 
@@ -58,8 +63,9 @@ const BAND_OPTIONS: { label: string; value: ScoreBand }[] = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
+  const plan = await resolveAndStorePlan(billing, shop.id);
 
   const url = new URL(request.url);
   const bandParam = url.searchParams.get("band") as ScoreBand | null;
@@ -89,11 +95,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })),
   }));
 
-  return { products, readiness, band, enrichmentConfigured: isEnrichmentConfigured() };
+  return {
+    products,
+    readiness,
+    band,
+    enrichmentConfigured: isEnrichmentConfigured(),
+    plan,
+    canEnrich: canEnrich(plan),
+    pricingUrl: managedPricingUrl(session.shop),
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, billing } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "sync");
@@ -104,10 +118,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return { ok: true, intent, ...summary };
     }
     if (intent === "generate") {
+      // Server-side tier gate — enforced even against a direct API call (QA-7).
+      assertCanEnrich(await resolveAndStorePlan(billing, shop.id));
       await generateEnrichment(admin, shop.id, String(form.get("productId")));
       return { ok: true, intent };
     }
     if (intent === "approve") {
+      assertCanEnrich(await resolveAndStorePlan(billing, shop.id));
       // Explicit approval, then write-back (passes the approval gate).
       const draftId = String(form.get("draftId"));
       await approveDraft(shop.id, draftId);
@@ -129,7 +146,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Products() {
-  const { products, readiness, band, enrichmentConfigured } =
+  const { products, readiness, band, enrichmentConfigured, canEnrich, pricingUrl } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -305,6 +322,8 @@ export default function Products() {
       <ProductDetail
         product={selected}
         enrichmentConfigured={enrichmentConfigured}
+        canEnrich={canEnrich}
+        pricingUrl={pricingUrl}
         busy={busy}
         onClose={() => setSelectedId(null)}
         onGenerate={() =>
@@ -345,6 +364,8 @@ function preview(aiValue: string): string {
 function ProductDetail({
   product,
   enrichmentConfigured,
+  canEnrich,
+  pricingUrl,
   busy,
   onClose,
   onGenerate,
@@ -352,6 +373,8 @@ function ProductDetail({
 }: {
   product: LoadedProduct | null;
   enrichmentConfigured: boolean;
+  canEnrich: boolean;
+  pricingUrl: string;
   busy: boolean;
   onClose: () => void;
   onGenerate: () => void;
@@ -408,7 +431,7 @@ function ProductDetail({
             <Text as="h3" variant="headingSm">
               AI enrichment
             </Text>
-            {enrichmentConfigured && (
+            {enrichmentConfigured && canEnrich && (
               <Button loading={busy} onClick={onGenerate}>
                 {activeDrafts.length > 0 ? "Regenerate" : "Generate improvements"}
               </Button>
@@ -422,6 +445,21 @@ function ProductDetail({
                 Claude-generated improvements. All output is reviewed and
                 approved by you before anything is written to your store.
               </p>
+            </Banner>
+          ) : !canEnrich ? (
+            <Banner tone="warning" title="Available on Growth & Pro">
+              <BlockStack gap="200">
+                <p>
+                  AI enrichment (description rewrites, FAQ, and attribute
+                  suggestions with one-click write-back) is included on the
+                  Growth and Pro plans.
+                </p>
+                <InlineStack>
+                  <Button url={pricingUrl} target="_blank" variant="primary">
+                    Upgrade plan
+                  </Button>
+                </InlineStack>
+              </BlockStack>
             </Banner>
           ) : activeDrafts.length === 0 ? (
             <Text as="p" tone="subdued" variant="bodySm">

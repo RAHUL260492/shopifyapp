@@ -4,6 +4,12 @@
 
 export const APP_NAME = "Cited";
 
+// The app's handle in the Partner Dashboard — used to build the Shopify
+// Managed Pricing URL (admin.shopify.com/store/<store>/charges/<APP_HANDLE>/pricing_plans).
+// NOTE: verify this matches the app handle in the Partner Dashboard before the
+// live billing QA (Phase 7). Overridable via env for different environments.
+export const APP_HANDLE = process.env.SHOPIFY_APP_HANDLE || "cited";
+
 // Plan tiers and their server-enforced limits (brief §2.2.4, extended to 4 tiers).
 // Enforcement lands in Phase 7; defined here so UI/limits share one source.
 // `scanCadence` is the citation-scan frequency; `competitorLimit` caps
