@@ -17,13 +17,26 @@ Newest entries at the top of each section.
 | 5 | Visibility Dashboard | not started | — |
 | 6 | llms.txt / JSON-LD / robots | CODE COMPLETE | generator+proxy, robots audit, JSON-LD theme extension built; live QA-6 pending deploy |
 | 7 | Billing & Tier Enforcement | CODE COMPLETE | Managed Pricing: plan resolution + server-side enforcement built; live QA-7 pends Partner Dashboard plans |
-| 8 | Hardening & Compliance | not started | — |
+| 8 | Hardening & Compliance | MOSTLY COMPLETE | GDPR webhooks + idempotency + uninstall cleanup built; 0 critical vulns; live QA-8 + dep cleanup pending |
 | 9 | Beta on Real Stores | not started | — |
 | 10 | App Store Submission Prep | not started | — |
 
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 8 GDPR compliance webhooks + hardening
+**Built:**
+- **Mandatory GDPR webhooks** (`app/routes/webhooks.compliance.tsx`, registered via `compliance_topics` in `shopify.app.toml`): one endpoint handling `customers/data_request`, `customers/redact`, `shop/redact`. Cited stores **no customer PII** (only shop-scoped catalog/enrichment/prompt/scan data), so customer requests have nothing to return/delete; `shop/redact` deletes the Shop (cascades to all child data) + residual sessions.
+- **HMAC verification** is automatic — `authenticate.webhook` verifies the signature and throws 401 on a tampered payload, on every webhook topic (QA-8: bad HMAC rejected).
+- **Idempotency** (`process.server.ts` + pure `topics.ts`, 4 tests): dedupe by Shopify's `X-Shopify-Webhook-Id` recorded in `WebhookLog` — replaying a webhook twice is a no-op. `normalizeTopic`/`complianceTopic` canonicalize slash vs enum topic spellings.
+- **Uninstall cleanup** enhanced: `app/uninstalled` purges access tokens (sessions) immediately and stamps `Shop.uninstalledAt`; catalog data retained until `shop/redact` (30-day window per the billing decision).
+
+**Security pass (already satisfied by earlier phases):** session-token auth on every `app.*` route (`authenticate.admin`); secrets server-only (`.server` modules + env, never in the client bundle); SQL-injection-safe (Prisma parameterized); LLM output treated as untrusted + sanitized/escaped (Phase 3); Admin API throttle-aware retry (Phase 2). Sentry intentionally skipped for v1 (pino + `/healthz`).
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation only) · tests **99/99** ✅ · build ✅. `npm audit`: **0 critical** (QA-8 bar met); 37 high / 6 moderate remain from inherited template deps — batch cleanup deferred (non-blocking).
+
+**Remaining to close QA-8 (needs live store):** trigger each GDPR webhook and verify DB state (shop/redact actually erases; verify with a tampered payload → 401); confirm uninstall purges tokens; simulate Admin 429s; 5k-product load sanity check. Dependency high/moderate cleanup (`npm audit`) before submission.
 
 ### 2026-07-18 — Phase 7 billing via Shopify Managed Pricing + server-side tier enforcement
 **Decision:** Rahul asked about Razorpay for billing — flagged as a Shopify App Store violation (app charges to merchants MUST go through Shopify billing; external payment gets the app rejected). Chose **Managed Pricing** (Shopify hosts the plan-selection/checkout/trial/cancellation; we resolve the active plan + enforce limits). This resolves the Phase-0 open question (Billing API vs Managed Pricing) in favor of Managed Pricing.

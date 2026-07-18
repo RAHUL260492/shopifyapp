@@ -10,7 +10,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Webhook requests can trigger multiple times and after an app has already been uninstalled.
   // If this webhook already ran, the session may have been deleted previously.
   if (session) {
+    // Purge access tokens immediately (brief QA-8). Catalog/enrichment data is
+    // retained until shop/redact (30-day window per the billing decision).
     await db.session.deleteMany({ where: { shop } });
+    await db.shop.updateMany({
+      where: { domain: shop },
+      data: { uninstalledAt: new Date() },
+    });
   }
 
   return new Response();
