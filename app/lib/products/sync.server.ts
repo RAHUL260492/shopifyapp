@@ -164,6 +164,7 @@ async function persistProduct(
         shopifyGid: node.id,
         title: scorable.title,
         handle: node.handle ?? "",
+        status: node.status,
         syncedAt: new Date(),
         readinessScore: breakdown.score,
         scoreBreakdown: breakdown as unknown as object,
@@ -171,6 +172,7 @@ async function persistProduct(
       update: {
         title: scorable.title,
         handle: node.handle ?? "",
+        status: node.status,
         syncedAt: new Date(),
         readinessScore: breakdown.score,
         scoreBreakdown: breakdown as unknown as object,

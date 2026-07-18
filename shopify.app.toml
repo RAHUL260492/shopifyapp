@@ -34,6 +34,14 @@ api_version = "2026-07"
   uri = "/webhooks/products/delete"
   topics = [ "products/delete" ]
 
+[app_proxy]
+# Serves llms.txt at https://{shop}/apps/cited/llms.txt (forwarded to /proxy/*).
+# NOTE: `url` must point at the live app URL — update to the deployed/tunnel URL
+# and run `shopify app deploy` before the llms.txt live QA (Phase 6 / QA-6).
+url = "https://example.com/proxy"
+subpath = "cited"
+prefix = "apps"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # Minimum-necessary for current phases: read (Phase 2 sync) + write (Phase 3 enrichment).

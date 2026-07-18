@@ -69,6 +69,7 @@ model Product {
   shopifyGid     String // gid://shopify/Product/123
   title          String
   handle         String
+  status         String    @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED (Shopify ProductStatus)
   syncedAt       DateTime?
   readinessScore Int? // 0-100, null until first scored
   scoreBreakdown Json      @default("{}") // per-rule detail

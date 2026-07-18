@@ -15,7 +15,7 @@ Newest entries at the top of each section.
 | 3 | AI Enrichment Flow | CODE COMPLETE | adapter+generate+approve/write-back/rollback built; safety logic tested; live QA-3 pending key+store |
 | 4 | Citation Tracking Engine | not started | — |
 | 5 | Visibility Dashboard | not started | — |
-| 6 | llms.txt / JSON-LD / robots | not started | — |
+| 6 | llms.txt / JSON-LD / robots | CODE COMPLETE | generator+proxy, robots audit, JSON-LD theme extension built; live QA-6 pending deploy |
 | 7 | Billing & Tier Enforcement | not started | — |
 | 8 | Hardening & Compliance | not started | — |
 | 9 | Beta on Real Stores | not started | — |
@@ -24,6 +24,18 @@ Newest entries at the top of each section.
 ---
 
 ## Session log
+
+### 2026-07-18 — Phase 6 llms.txt + JSON-LD + robots guidance
+**Built:**
+- **Product.status** added to schema (migration `20260718132752_add_product_status`) and persisted during sync — so llms.txt can exclude DRAFT/ARCHIVED (QA-6: no draft leaks).
+- **llms.txt generator** (`app/lib/llmstxt/generate.ts`, pure, 6 tests): well-formed markdown index of ACTIVE products with correct storefront URLs; excludes drafts/archived/handle-less; sanitizes titles. Served **live from the DB** via an app-proxy route (`app/routes/proxy.llms[.]txt.tsx`) at `https://{shop}/apps/cited/llms.txt` — always current, so the "refresh within 24h" gate is met without a job. `[app_proxy]` added to `shopify.app.toml`.
+- **robots.txt AI-crawler auditor** (`app/lib/robots/audit.ts`, pure, 6 tests): parses robots.txt into user-agent groups, detects whether each AI crawler (OAI-SearchBot, GPTBot, PerplexityBot, Google-Extended, ClaudeBot, Applebot-Extended) is blocked (exact group preferred over wildcard), and builds a copy-paste `robots.txt.liquid` fix. Settings page fetches the live storefront robots.txt and renders per-crawler Allowed/Blocked badges + the fix snippet.
+- **JSON-LD theme app extension** (`extensions/cited-schema/`): app-embed block injecting Organization (all pages) and Product + Offer + AggregateRating + Brand + FAQPage (product pages) into `<head>`. FAQPage reads the `cited.faq` metafield written by Phase 3 enrichment. Inert `<script type="application/ld+json">` only — zero render-blocking weight.
+- **Settings page** rebuilt: llms.txt URL (copy/open), robots audit + re-check + copy-paste fix, and JSON-LD enable instructions.
+
+**QA (Level 1):** typecheck ✅ · lint ✅ (deprecation warning only) · tests **84/84** ✅ (added llms.txt ×6, robots ×6) · build ✅.
+
+**Remaining to close QA-6 (needs deploy + `shopify app dev`/live store):** set `[app_proxy].url` to the live app URL and `shopify app deploy` (currently placeholder `example.com/proxy`), then verify the llms.txt URL loads and excludes a draft product; enable the "Cited SEO Schema" app embed in the theme editor and validate 5 product types (incl. one no-reviews, one with variants) against Google's Rich Results Test; confirm Lighthouse delta < 2; verify the robots audit against a crafted robots.txt on the live store. JSON-LD is Liquid so not unit-tested — validated live per QA-6.
 
 ### 2026-07-18 — Phase 3 AI enrichment (Claude): adapter, generate, approve/write-back/rollback
 **Built:**
